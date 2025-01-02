@@ -7,7 +7,7 @@ This project is a web application that integrates with a C++ backend to perform 
 - **Airfoil Geometry Plotting**: Visualize the airfoil shape and panel points.
 - **Cp Distribution Plot**: Plot the coefficient of pressure (Cp) along the airfoil surface.
 - **Streamline Plotting**: Plot streamline data to analyze the flow around the airfoil.
-- **C++ Backend Integration**: Communicates with a C++ backend (`a`) for vortex panel simulations and data handling.
+- **C++ Backend Integration**: Communicates with a C++ backend (`aa`) for vortex panel simulations and data handling.
 - **User Interface**: A clean and responsive web interface to interact with simulation data.
 
 ## Prerequisites
