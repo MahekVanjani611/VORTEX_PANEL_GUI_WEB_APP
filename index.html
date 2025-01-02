@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NACA 4 DIGITS AIRFOIL PLOTTER</title>
+  
+    <style>
+        /* General styling */
+        body {
+            margin: 0;
+            background-color: #eef2f5;
+            font-family: Arial, sans-serif;
+            color: #333;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            flex-direction: column; /* Ensure vertical alignment of header and content */
+        }
+    
+        h2 {
+            font-size: 26px;
+            margin-top: 20px;
+            color: #444;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            width: 100%;
+            padding-bottom: 10px; /* Space below the heading */
+            border-bottom: 2px solid #ddd; /* Add a border to separate the heading */
+        }
+    
+        /* Main container with flex */
+        .container {
+            display: flex;
+            flex: 1;
+            position: relative;
+            width: 100%;
+            padding: 20px;
+        }
+    
+        /* Form styling */
+        form {
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            margin: 20px;
+            width: 250px; /* Smaller form size */
+            background-color: #ffffff;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            z-index: 2;
+            transition: opacity 0.3s ease;
+        }
+    
+        label {
+            font-size: 14px;
+            margin-top: 10px;
+            color: #666;
+        }
+    
+        input[type="number"] {
+            margin-top: 5px;
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+            color: #333;
+            transition: border 0.3s;
+        }
+    
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #0056b3;
+            box-shadow: 0 0 5px rgba(0, 86, 179, 0.2);
+        }
+    
+        button {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #0056b3;
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+    
+        button:hover {
+            background-color: #004080;
+        }
+    
+        /* SVG canvas styling */
+        svg {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            border: 1px solid #ddd;
+            height: 100vh; /* Full screen height */
+            width: 150vw; /* Full screen width */
+            flex-grow: 1;
+        }
+    
+        .lineCp {
+            stroke: #8a2be2;
+            fill: none;
+            stroke-width: 2px;
+        }
+    
+        .lineAirfoil {
+            stroke: #0073e6;
+            fill: none;
+            stroke-width: 2px;
+        }
+    
+        /* Hide form when it's not needed */
+        .form-hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .lineStreamline {
+            stroke: #ff6347;
+            fill: none;
+            stroke-width: 1.5px;
+        }
+
+
+        /* Results box */
+        .results-group {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #ffffff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            border: 1px solid #ddd;
+            z-index: 2;
+            max-height: 90vh; /* Limit height */
+            overflow-y: auto; /* Scrollable if content overflows */
+            width: 300px;
+        }
+    
+        .result-text {
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            color: #333;
+            font-weight: bold;
+        }
+    
+        /* Modify layout to place form on the right and canvas on the left */
+        .container {
+            display: flex;
+            flex-direction: row; /* Change to row layout */
+            justify-content: flex-start;
+            align-items: stretch;
+        }
+    
+        svg {
+            order: 1; /* Ensure SVG stays on the left side */
+        }
+    
+        form {
+            order: 2; /* Ensure form stays on the right side */
+        }
+    </style>
+</head>
+
+<body>
+    <h2>NACA 4 DIGITS AIRFOIL PLOTTER</h2>
+    <div class="container">
+        <svg id="chart"></svg>
+
+        <form id="airfoil-form">
+            <label for="ymc">Maximum Camber (ymc): </label>
+            <input type="number" id="ymc" name="ymc" step="1" required>
+
+            <label for="xmc">Position of Maximum Camber (xmc): </label>
+            <input type="number" id="xmc" name="xmc" step="1" required>
+
+            <label for="tm">Maximum Thickness (tm): </label>
+            <input type="number" id="tm" name="tm" step="1" required>
+
+            <label for="trailing-edge">Trailing Edge Type: </label>
+            <input type="number" id="trailing-edge" name="trailing-edge" step="1" required>
+
+            <label for="alfa">Alfa (in degrees): </label>
+            <input type="number" id="alfa" name="alfa" step="1" required>
+
+
+            <button type="button" id="plot-btn">Plot Airfoil</button>
+        </form>
+
+        <!-- Results box -->
+        <div class="results-group" id="results-box">
+            <!-- Dynamic results will appear here -->
+        </div>
+    </div>
+
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script>
+        const svg = d3.select("#chart");
+
+        function fetchAndPlotData() {
+            fetch('/calculate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ymc: document.getElementById('ymc').value,
+                    xmc: document.getElementById('xmc').value,
+                    tm: document.getElementById('tm').value,
+                    trailing_edge_type: document.getElementById('trailing-edge').value,
+                    alfa: document.getElementById('alfa').value  // Correctly include alfa here
+                })
+            })
+            .then(response => response.json())
+            .then(parsedData => {
+                svg.selectAll("*").remove();
+                document.getElementById('airfoil-form').classList.add('form-hidden');
+
+                const width = svg.node().getBoundingClientRect().width;
+                const height = svg.node().getBoundingClientRect().height;
+
+                const x = d3.scaleLinear().range([0, width]).domain(d3.extent(parsedData.panelPoints, d => d.x));
+
+                const yCp = d3.scaleLinear()
+                    .range([height / 2, 0])
+                    .domain([d3.min(parsedData.cpPoints, d => d.y) - 1, d3.max(parsedData.cpPoints, d => d.y) + 1]);
+
+                const yAirfoil = d3.scaleLinear()
+                    .range([height, height / 2])
+                    .domain([d3.min(parsedData.panelPoints, d => d.y) - 0.1, d3.max(parsedData.panelPoints, d => d.y) + 0.1]);
+
+                const xAxis = d3.axisBottom(x).ticks(10);
+                const yAxisCp = d3.axisLeft(yCp).ticks(6);
+
+                svg.append("g").attr("class", "x-axis").attr("transform", `translate(0,${height / 2})`).call(xAxis);
+                svg.append("g").attr("class", "y-axis y-axis-cp").call(yAxisCp);
+                svg.append("text")
+                .attr("class", "x-axis-label")
+                .attr("x", width / 2) // Center the label
+                .attr("y", height / 2 + 40) // Position slightly below the x-axis
+                .attr("text-anchor", "middle")
+                .style("font-size", "14px")
+                .style("fill", "#333")
+                .text("x/c");
+
+      
+
+               
+                    updateCpPlot(parsedData.cpPoints,x,yCp);
+                    updateAirfoilPlot(parsedData.panelPoints,x,yAirfoil);
+                
+
+                
+                    loadAndPlotStreamlines();
+                
+
+                document.getElementById('airfoil-form').classList.add('form-hidden');
+          
+
+
+                displayResults(parsedData.results, parsedData.concatenatedValues, parsedData.writealfa);
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function updateCpPlot(data, x, yCp) {
+            const lineCp = d3.line().x(d => x(d.x)).y(d => yCp(d.y));
+            svg.append("path").datum(data).attr("class", "line lineCp").attr("d", lineCp);
+        }
+
+        function updateAirfoilPlot(data, x, yAirfoil) {
+            // Create the line for the airfoil
+            const lineAirfoil = d3.line().x(d => x(d.x)).y(d => yAirfoil(d.y));
+        
+            // Append the airfoil line to the SVG
+            svg.append("path")
+                .datum(data)
+                .attr("class", "line lineAirfoil")
+                .attr("d", lineAirfoil);
+        
+            // Create the scatter plot for the airfoil data points
+            svg.selectAll(".scatter")
+                .data(data)
+                .enter()
+                .append("circle")
+                .attr("class", "scatter")
+                .attr("cx", d => x(d.x))
+                .attr("cy", d => yAirfoil(d.y))
+                .attr("r", 3) // Radius of the scatter points
+                .attr("fill", "#ff5733") // Color for the scatter points
+                .attr("stroke", "#fff") // Stroke color for the scatter points
+                .attr("stroke-width", 1);
+        }
+        
+
+        function displayResults(results, concatenatedValues, writealfa) {
+            const resultsBox = document.getElementById('results-box');
+            resultsBox.innerHTML = ` 
+                <p>NACA: ${concatenatedValues}</p>
+                <p>Alfa: ${writealfa}</p>
+                <p>CL: ${results.section_lift_coefficient || 'N/A'}</p>
+                <p>CMLE: ${results.sectional_moment_about_leading_edge || 'N/A'}</p>
+                <p>CMC4: ${results.sectional_moment_about_quarter_chord || 'N/A'}</p>
+            `;
+        }
+        function loadAndPlotStreamlines() {
+            for (let i = 0; i < 10; i++) {
+                const streamlineFile = `other_streamlines_${i}.csv`;
+                d3.csv(streamlineFile).then(data => {
+                    const streamlineData = data.map(d => ({
+                        x: parseFloat(d.x),
+                        y: parseFloat(d.y)
+                    }));
+
+                    updateStreamlines(streamlineData);
+                }).catch(error => {
+                    console.error(`Error loading streamline file ${i}:`, error);
+                });
+            }
+        }
+
+        function updateStreamlines(data) {
+            const line = d3.line()
+                .x(d => x(d.x))
+                .y(d => yAirfoil(d.y));
+
+            svg.append("path")
+                .datum(data)
+                .attr("class", "lineStreamline")
+                .attr("d", line);
+        }
+
+        document.getElementById('plot-btn').addEventListener('click', fetchAndPlotData);
+    </script>
+</body>
+
+</html>
