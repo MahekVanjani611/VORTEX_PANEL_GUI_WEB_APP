@@ -58,7 +58,7 @@ This will start the C++ backend, which the Node.js server will communicate with.
 In a separate terminal window, start the Node.js server by running:
 
 ```bash
-npm start
+node server.js
 ```
 The server will start locally on http://localhost:3000.
 
