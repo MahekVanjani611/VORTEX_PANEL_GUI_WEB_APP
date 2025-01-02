@@ -26,7 +26,7 @@ app.post('/calculate', (req, res) => {
 
     console.log('Received form data:', { ymc, xmc, tm, trailing_edge_type, alfa }); // Log received data
 
-    const command = `.\\aa.exe ${ymc} ${xmc} ${tm} ${trailing_edge_type} ${alfa}`;
+    const command = path.join(__dirname, 'aa.exe') + ` ${ymc} ${xmc} ${tm} ${trailing_edge_type} ${alfa}`;
     console.log('Executing command:', command); // Log command execution
 
     exec(command, (error, stdout, stderr) => {
@@ -42,95 +42,93 @@ app.post('/calculate', (req, res) => {
 
         console.log('Program executed successfully, reading output files...');
 
-        Promise.all([
-            fs.promises.readFile('Cp.csv', 'utf8'),
-            fs.promises.readFile('panel_points.csv', 'utf8'),
-            fs.promises.readFile('results.csv', 'utf8'),
-        ]).then(([cpData, panelData, resultsData]) => {
-            console.log('Files read successfully'); // Confirm files are read
+        // Ensure output files exist before reading them
+        const filePaths = [
+            'Cp.csv', 
+            'panel_points.csv', 
+            'results.csv', 
+            'forward_stagline.csv',
+            'aft_stagline.csv',
+            'other_streamlines_0.csv',
+            'other_streamlines_1.csv',
+            'other_streamlines_2.csv',
+            'other_streamlines_3.csv',
+            'other_streamlines_4.csv',
+            'other_streamlines_5.csv',
+            'other_streamlines_6.csv',
+            'other_streamlines_7.csv',
+            'other_streamlines_8.csv',
+            'other_streamlines_9.csv'
+        ];
+
+        const filePromises = filePaths.map(file => 
+            fs.promises.readFile(file, 'utf8').catch(err => null)
+        );
+
+        Promise.all(filePromises).then(fileContents => {
+            const [cpData, panelData, resultsData, ...streamlineData] = fileContents;
+
+            // Check if the required files exist and handle errors
+            if (!cpData || !panelData || !resultsData) {
+                return res.status(404).json({ error: 'One or more required output files are missing' });
+            }
 
             // Parse Cp.csv file
             const cpPoints = cpData.split('\n').map(line => {
                 const [x, y] = line.trim().split(/\s+/).map(Number);
                 return { x, y: -y }; // Reverse y values for Cp
             }).filter(point => !isNaN(point.x) && !isNaN(point.y));
-            console.log('Parsed Cp points:', cpPoints); // Log parsed Cp points
+            console.log('Parsed Cp points:', cpPoints);
 
             // Parse panel_points.csv file
             const panelPoints = panelData.split('\n').map(line => {
                 const [x, y] = line.trim().split(/\s+/).map(Number);
                 return { x, y };
             }).filter(point => !isNaN(point.x) && !isNaN(point.y));
-            console.log('Parsed Panel points:', panelPoints); // Log parsed panel points
+            console.log('Parsed Panel points:', panelPoints);
 
             // Parse results.csv file
             const resultsLines = resultsData.split('\n').filter(line => line.trim() !== '');
             const results = {};
             resultsLines.forEach(line => {
                 const [key, value] = line.split('=');
-                results[key.trim()] = parseFloat(value.trim()) || value.trim(); // Store values as float or string
+                results[key.trim()] = parseFloat(value.trim()) || value.trim();
             });
-            console.log('Parsed results:', results); // Log parsed results
+            console.log('Parsed results:', results);
 
-            // Read and parse streamline files
-            const streamlineFiles = [
-                'forward_stagline.csv',
-                'aft_stagline.csv',
-                'panel_points.csv',
-                'other_streamlines_0.csv', 'other_streamlines_1.csv', 'other_streamlines_2.csv',
-                'other_streamlines_3.csv', 'other_streamlines_4.csv', 'other_streamlines_5.csv',
-                'other_streamlines_6.csv', 'other_streamlines_7.csv', 'other_streamlines_8.csv', 'other_streamlines_9.csv'
-            ];
-
-            // Read each file in parallel
-            const filePromises = streamlineFiles.map(fileName =>
-                fs.promises.readFile(fileName, 'utf8').catch(err => null) // Catch errors for missing files
-            );
-
-            Promise.all(filePromises).then(fileContents => {
-                let streamlinesPoints = [];
-
-                fileContents.forEach((content, index) => {
-                    if (content) {
-                        // Parse the file with x and y values only
-                        const streamlineData = content.split('\n').map(line => {
-                            const parts = line.trim().split(/\s+/).map(Number);
-                            if (parts.length === 2) { // Handle files with only x and y values
-                                const [x, y] = parts;
-                                return { x, y };
-                            }
-                            return null; 
-                        }).filter(point => point !== null); // Filter out invalid lines
-                        
-                        if (streamlineData.length > 0) {
-                            streamlinesPoints.push({ file: streamlineFiles[index], data: streamlineData });
-                            console.log(`Parsed data for ${streamlineFiles[index]}`, streamlineData); // Log parsed streamline data
-                        } else {
-                            console.log(`No valid data found in ${streamlineFiles[index]}`);
+            // Parse streamlines files
+            let streamlinesPoints = [];
+            streamlineData.forEach((content, index) => {
+                if (content) {
+                    const streamlineDataParsed = content.split('\n').map(line => {
+                        const parts = line.trim().split(/\s+/).map(Number);
+                        if (parts.length === 2) {
+                            const [x, y] = parts;
+                            return { x, y };
                         }
-                    } else {
-                        console.log(`File ${streamlineFiles[index]} not found or is empty.`);
+                        return null; 
+                    }).filter(point => point !== null);
+
+                    if (streamlineDataParsed.length > 0) {
+                        streamlinesPoints.push({ file: filePaths[index + 3], data: streamlineDataParsed });
+                        console.log(`Parsed data for ${filePaths[index + 3]}`, streamlineDataParsed);
                     }
-                });
-
-                const responseData = {
-                    cpPoints,
-                    panelPoints,
-                    results,
-                    concatenatedValues: `${ymc}${xmc}${tm}`,
-                    writealfa: `${alfa}`,
-                    streamlinesPoints // Include parsed streamlines data
-                };
-
-                res.json(responseData);
-            }).catch(err => {
-                console.error(`Error reading streamline files: ${err.message}`);
-                res.status(500).json({ error: 'Failed to read streamline files' });
+                }
             });
 
+            const responseData = {
+                cpPoints,
+                panelPoints,
+                results,
+                concatenatedValues: `${ymc}${xmc}${tm}`,
+                writealfa: `${alfa}`,
+                streamlinesPoints // Include parsed streamlines data
+            };
+
+            res.json(responseData);
         }).catch(err => {
-            console.error(`Error reading files: ${err.message}`);
-            res.status(500).json({ error: 'Failed to read output files' });
+            console.error(`Error reading streamline files: ${err.message}`);
+            res.status(500).json({ error: 'Failed to read streamline files' });
         });
     });
 });
