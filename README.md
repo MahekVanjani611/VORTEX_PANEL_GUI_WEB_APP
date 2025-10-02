@@ -2,6 +2,9 @@
 
 This project is a web application that integrates with a C++ backend to perform vortex panel method simulations, visualize aerodynamic data, and plot airfoil geometry and streamline distributions. It provides an interactive interface for users to input parameters and visualize results of airfoil simulations.
 
+## AIRFOIL PLOT
+<img width="566" height="368" alt="image" src="https://github.com/user-attachments/assets/9948705d-8906-467c-9395-51f2034a248d" />
+
 ## Features
 
 - **Airfoil Geometry Plotting**: Visualize the airfoil shape and panel points.
